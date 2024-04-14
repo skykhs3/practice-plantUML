@@ -1,0 +1,36 @@
+@startuml
+
+participant "Mobile App" as MobileApp
+actor "User" as User
+participant "Bucks Frontend" as BucksFrontend
+participant "Bucks Backend" as BucksBackend
+participant "Logic Server" as LogicServer
+
+note over BucksFrontend: /m/login
+User -> BucksFrontend: Clicks on\n"Sign in with Club Vegas"
+BucksFrontend -> BucksBackend: request
+note over BucksBackend: /login/clubvegasapp
+BucksBackend -> LogicServer: request
+note right LogicServer: /_ _bucksbackend__/createLoginToken
+LogicServer -> LogicServer: uuidv4로 token 생성, 레디스에 "키(temporary:{token}) 값()" 형태로 저장
+LogicServer --> BucksBackend: response{token}
+BucksBackend -> BucksBackend: req.session.app_login_token = token
+BucksBackend --> BucksFrontend: response{token}
+note over BucksFrontend: /login/clubvegasapp?dead=1로 전환
+BucksFrontend -> MobileApp: Deep Link(Action, token)
+MobileApp -> LogicServer: request
+note over LogicServer : /v0/action/clubvegasapplogin
+LogicServer -> LogicServer : token과 값이 없는 데이터가 레디스에 있는지 확인, 있으면,\n"키(temporary:{token})" 삭제\n"&& 키(temporary:{token}) 값({user_id})" 생성
+LogicServer --> MobileApp: response{redirect_url}
+MobileApp -> BucksFrontend: 브라우저로 redirect
+note over BucksFrontend: /login/clubvegasapp
+BucksFrontend -> BucksBackend: request
+note over BucksBackend: /verify/clubvegasapp
+BucksBackend -> LogicServer: request{req.session.app_login_token}
+LogicServer -> LogicServer: 키(temporary:{app_login_token})값{user_id}이 레디스에 있는지 확인, 있으면 삭제.
+LogicServer --> BucksBackend: response{user_id}
+BucksBackend -> BucksBackend: req.session.user_id = user_id
+BucksBackend --> BucksFrontend: response
+note over BucksFrontend: /m/top_up 로 전환
+
+@enduml
